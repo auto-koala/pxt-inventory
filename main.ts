@@ -167,6 +167,7 @@ class Inventory extends Sprite {
     itemSelectedEvent: (targetInventory: Inventory, selectedItem: Item) => void
     private _selectedColumn: number = 0
     private _selectedRow: number = 0
+    private _selectionEnabled: boolean = true
 
     private padding: number = 0
 
@@ -206,6 +207,7 @@ class Inventory extends Sprite {
         this._slotSelectedBorderColor = slotSelectedBorderColor
         this._selectedColumn = 0
         this._selectedRow = 0
+        this._selectionEnabled = true
 
         // Create slots
         for (let r: number = 0; r < rows; r++) {
@@ -254,7 +256,7 @@ class Inventory extends Sprite {
 
 
                 // Draw slot borders
-                if (c == this.selectedColumn && r == this.selectedRow) {
+                if (this.selectionEnabled && c == this.selectedColumn && r == this.selectedRow) {
                     updatedImage.fillRect(this.padding + (this.slotSize + this.slotSpacing) * c, this.padding + (this.slotSize + this.slotSpacing) * r,
                         this.slotSize, this.slotSize, this.slotSelectedBorderColor)
                 } else {
@@ -402,7 +404,11 @@ class Inventory extends Sprite {
     //% blockSetVariable=myInventory
     //% weight=99
     get selectedColumn() {
-        return this._selectedColumn
+        if (this.selectionEnabled) {
+            return this._selectedColumn
+        } else {
+            return null
+        }
     }
 
     // Set selected column
@@ -411,7 +417,7 @@ class Inventory extends Sprite {
     //% blockSetVariable=myInventory
     //% weight=99
     set selectedColumn(column: number) {
-        if (column >= 0 && column < this.columns) {
+        if (this.selectionEnabled && column >= 0 && column < this.columns) {
             this._selectedColumn = column
             this.redraw()
 
@@ -433,7 +439,11 @@ class Inventory extends Sprite {
     //% blockSetVariable=myInventory
     //% weight=99
     get selectedRow() {
-        return this._selectedRow
+        if (this.selectionEnabled) {
+            return this._selectedRow
+        } else {
+            return null
+        }
     }
 
     // Set selected row
@@ -442,7 +452,7 @@ class Inventory extends Sprite {
     //% blockSetVariable=myInventory
     //% weight=99
     set selectedRow(row: number) {
-        if (row >= 0 && row < this.rows) {
+        if (this.selectionEnabled && row >= 0 && row < this.rows) {
             this._selectedRow = row
             this.redraw()
 
@@ -613,6 +623,13 @@ class Inventory extends Sprite {
         }
     }
 
+    //% blockCombine
+    //% group="Select"
+    //% blockSetVariable=myInventory
+    //% weight=99
+    get selectionEnabled() {
+        return this._selectionEnabled
+    }
 
 
     // Events
@@ -761,7 +778,7 @@ class Inventory extends Sprite {
     //% col.defl = 0
     //% row.defl = 0
     selectSlot(col: number, row: number) {
-        if (col >= 0 && col < this.columns && row >= 0 && row < this.rows) {
+        if (this.selectionEnabled && col >= 0 && col < this.columns && row >= 0 && row < this.rows) {
             this._selectedColumn = col
             this._selectedRow = row
 
@@ -803,6 +820,22 @@ class Inventory extends Sprite {
                 }
             }
         }
+    }
+
+    /**
+     * Toggles whether slot selection is enabled. Turn off if you don't want any slots to be selected.
+     * @param enabled whether the selection is enabled
+     */
+    //% block="$this turn selection $enabled"
+    //% group="Select"
+    //% weight=67
+    //% this.defl=myInventory
+    //% this.shadow=variables_get
+    //% enabled.defl=false
+    //% enabled.shadow="toggleOnOff"
+    setSelectionEnabled(enabled: boolean) {
+        this._selectionEnabled = enabled;
+        this.redraw();
     }
 
     // This functions similar to Sprite.overlapsWith(), which cannot be used as this sprite is relative to camera
@@ -892,12 +925,17 @@ class Inventory extends Sprite {
     //% this.shadow=variables_get
     //% itemId.shadow=item_enum_shim
     //% amount.defl=1
+    //% strict.shadow="toggleOnOff"
     //% strict.defl=false
     insert(itemId: number, amount: number = 1, strict: boolean = false) {
         let item: Item = inventory.getItemFromId(itemId)
-        if (item === null || amount < 1) {
-            return
+        if (item === null) {
+            throw "InventoryError - Invalid item ID"
         }
+        if (amount < 1) {
+            throw "InventoryError - Amount cannot be less than 1"
+        }
+
 
         let slot: InventorySlot = null
 
@@ -998,11 +1036,19 @@ class Inventory extends Sprite {
     //% col.defl=0
     //% row.defl=0
     //% amount.defl=1
+    //% strict.shadow="toggleOnOff"
     //% strict.defl=false
     insertItemAtSlot(itemId: number, col: number, row: number, amount: number = 1, strict: boolean = false) {
         let item: Item = inventory.getItemFromId(itemId)
-        if (item === null || amount < 1 || col < 0 || col >= this.columns || row < 0 || row >= this.rows) {
-            return
+
+        if (item === null) {
+            throw "InventoryError - Invalid item ID"
+        }
+        if (amount < 1) {
+            throw "InventoryError - Amount cannot be less than 1"
+        }
+        if (col < 0 || col >= this.columns || row < 0 || row >= this.rows) {
+            throw "InventoryError - Slot outside inventory range"
         }
 
         let slot: InventorySlot = this.slots[row][col]
@@ -1050,11 +1096,12 @@ class Inventory extends Sprite {
     //% col.defl = 0
     //% row.defl = 0
     //% amount.defl=1
+    //% strict.shadow="toggleOnOff"
     //% strict.defl=false
     removeItemAtSlot(col: number, row: number, amount: number = 1, strict: boolean = false) {
         // Returns if slotId is invalid
         if (col < 0 || col >= this.columns || row < 0 || row >= this.rows) {
-            return
+            throw "InventoryError - Slot outside of inventory range"
         }
 
         let slot: InventorySlot = this.slots[row][col]
@@ -1138,7 +1185,7 @@ class Inventory extends Sprite {
     swapSlots(col1: number, row1: number, col2: number, row2: number) {
         if (col1 < 0 || col1 >= this.columns || row1 < 0 || row1 >= this.rows ||
             col2 < 0 || col2 >= this.columns || row2 < 0 || row2 >= this.rows) {
-            return
+            throw "InventoryError - Slot outside of inventory range"
         }
 
         let slot1: InventorySlot = this.slots[row1][col1]
